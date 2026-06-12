@@ -89,10 +89,10 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '0.5'
-          memory: 512M
+          cpus: '2'
+          memory: 4G
         reservations:
-          memory: 128M
+          memory: 512M
     healthcheck:
       test: ["CMD-SHELL", "celery -A app.celery_app inspect ping -d datafetch-global@$$HOSTNAME"]
       interval: 60s

@@ -74,7 +74,7 @@ x-worker-common: &worker-common
 services:
   redis:
     image: redis:7-alpine
-    command: redis-server --appendonly yes
+    command: redis-server --appendonly yes --save "" --stop-writes-on-bgsave-error no
     volumes:
       - redis_data:/data
     healthcheck:
@@ -383,7 +383,7 @@ services:
       backend:
         condition: service_started
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:80/nginx-health >/dev/null 2>&1 || exit 1"]
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:80/ >/dev/null 2>&1 || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 5
