@@ -73,8 +73,21 @@ celerybeat-schedule
 # Generated agent runtime state
 .superpowers/brainstorm/**/state/**
 
+# Local notes (personal, not for upstream)
+LOCAL_*.md
+local_*.md
+docs/使用說明.md
+
+# Local server configs (personal deployment)
+scripts/nginx/*.conf
+scripts/start_screener_stack.sh
+
 # bv (beads viewer) local config and caches
 .bv/
+
+#TODO.md
+todo.md
+
 
 
 # Load harness ephemeral output (committed baselines stay; per-run does not)
