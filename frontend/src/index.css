@@ -45,6 +45,15 @@ code {
   min-height: 100vh;
 }
 
+/* ── Google Translate overrides ─────────────────────────────────────────── */
+/* Prevent the yellow banner from pushing the whole page down */
+.goog-te-banner-frame { display: none !important; }
+#goog-gt-tt            { display: none !important; }
+body                   { top: 0 !important; }
+/* Hide "Powered by Google" text inside the gadget */
+.goog-te-gadget > span { display: none !important; }
+/* ─────────────────────────────────────────────────────────────────────────── */
+
 /* Monospace numbers for alignment in tables */
 .mono-number {
   font-family: var(--font-mono);

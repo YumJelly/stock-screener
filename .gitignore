@@ -49,7 +49,15 @@ data/*.recovered_*
 data/xui-reader/
 data/hermes/
 data/backups/
+data/.config/
+data/.local/
+data/governance/
+data/chip_charts/
 docker-data/
+
+# Generated chart output (broker T-charts, matplotlib exports)
+ploting/*.png
+ploting/**/*.png
 
 # Logs
 *.log

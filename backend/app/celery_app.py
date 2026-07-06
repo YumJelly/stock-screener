@@ -50,6 +50,7 @@ celery_app = Celery(
         'app.tasks.telemetry_tasks',  # Weekly telemetry governance audit (asia.10.4)
         'app.tasks.runtime_bootstrap_tasks',  # Local-default first-run bootstrap orchestration
         'app.interfaces.tasks.feature_store_tasks',  # Daily feature snapshot
+        'app.tasks.chip_tracking_tasks',  # Chip 30-day tracking daily re-fetch + push
     ]
 )
 celery_app.loader.override_backends = {
@@ -491,6 +492,18 @@ if settings.cache_warmup_enabled:
                 hour=5,
                 minute=0,
                 day_of_week=0,  # Sunday
+            ),
+        },
+
+        # Chip 30-day tracking: daily re-fetch of TWSE broker-branch data,
+        # redraw cumulative T-chart and proactively push to LINE subscribers.
+        # Runs 4:30 AM ET (~TW 16:30/17:30, after TWSE close) on weekdays.
+        'daily-chip-tracking': {
+            'task': 'app.tasks.chip_tracking_tasks.run_daily_chip_tracking',
+            'schedule': crontab(
+                hour=4,
+                minute=30,
+                day_of_week='1-5',  # Monday-Friday (TW trading days)
             ),
         },
     }

@@ -27,6 +27,7 @@ import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import CancelIcon from '@mui/icons-material/Cancel';
 
 import { getStockDecisionDashboard, getStockValidation } from '../../api/stocks';
+import { getTwBrokerRatings } from '../../api/twData';
 import CandlestickChart from '../Charts/CandlestickChart';
 import StockMetricsSidebar from '../Scan/StockMetricsSidebar';
 import AddToWatchlistMenu from '../common/AddToWatchlistMenu';
@@ -146,6 +147,8 @@ function StockDetails() {
   const [peerModalOpen, setPeerModalOpen] = useState(false);
   const [validationLookbackDays, setValidationLookbackDays] = useState(365);
 
+  const isTwSymbol = symbol?.endsWith('.TW') || symbol?.endsWith('.TWO');
+
   const { data, isLoading, error } = useQuery({
     queryKey: ['stockDecisionDashboard', symbol, activeProfile],
     queryFn: () => getStockDecisionDashboard(symbol, activeProfile),
@@ -167,6 +170,13 @@ function StockDetails() {
     () => data ? { ...(data.fundamentals || {}), symbol: data.symbol } : {},
     [data]
   );
+
+  const { data: brokerRatings } = useQuery({
+    queryKey: ['twBrokerRatings', symbol],
+    queryFn: () => getTwBrokerRatings(symbol),
+    enabled: Boolean(symbol) && isTwSymbol,
+    staleTime: 5 * 60_000,
+  });
 
   if (isLoading) {
     return (
@@ -532,6 +542,125 @@ function StockDetails() {
             )}
           </AccordionDetails>
         </Accordion>
+
+        {/* Taiwan-specific data (TW/TWO symbols only) */}
+        {isTwSymbol && (
+          <Accordion>
+            <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+              <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+                台股資料
+              </Typography>
+              {fundamentals.tw_esg_grade && (
+                <Chip size="small" variant="outlined" label={`ESG ${fundamentals.tw_esg_grade}`} sx={{ ml: 2 }} />
+              )}
+            </AccordionSummary>
+            <AccordionDetails>
+              <Stack spacing={2}>
+                {/* Monthly Revenue */}
+                <Box>
+                  <SectionHeader>月營收</SectionHeader>
+                  {fundamentals.tw_revenue_monthly_latest != null ? (
+                    <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 1.5 }}>
+                      <MetricRow
+                        label="最新月營收"
+                        value={formatLargeNumber(fundamentals.tw_revenue_monthly_latest)}
+                      />
+                      <MetricRow
+                        label="年增率 (YoY)"
+                        value={fundamentals.tw_revenue_monthly_yoy != null ? `${Number(fundamentals.tw_revenue_monthly_yoy).toFixed(1)}%` : '-'}
+                        color={fundamentals.tw_revenue_monthly_yoy > 0 ? 'success.main' : fundamentals.tw_revenue_monthly_yoy < 0 ? 'error.main' : undefined}
+                      />
+                      <MetricRow
+                        label="月增率 (MoM)"
+                        value={fundamentals.tw_revenue_monthly_mom != null ? `${Number(fundamentals.tw_revenue_monthly_mom).toFixed(1)}%` : '-'}
+                        color={fundamentals.tw_revenue_monthly_mom > 0 ? 'success.main' : fundamentals.tw_revenue_monthly_mom < 0 ? 'error.main' : undefined}
+                      />
+                      <MetricRow
+                        label="資料月份"
+                        value={fundamentals.tw_revenue_monthly_date || '-'}
+                      />
+                    </Box>
+                  ) : (
+                    <Typography variant="caption" color="text.secondary">尚無月營收資料</Typography>
+                  )}
+                </Box>
+
+                {/* ESG */}
+                <Box>
+                  <SectionHeader>ESG 評級</SectionHeader>
+                  {fundamentals.tw_esg_grade ? (
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                      <Chip
+                        label={fundamentals.tw_esg_grade}
+                        size="small"
+                        sx={{
+                          fontWeight: 700,
+                          bgcolor: ['AAA', 'AA'].includes(fundamentals.tw_esg_grade) ? 'success.main'
+                            : ['A', 'BBB'].includes(fundamentals.tw_esg_grade) ? 'warning.main'
+                            : 'error.main',
+                          color: 'white',
+                        }}
+                      />
+                      {fundamentals.tw_esg_updated_at && (
+                        <Typography variant="caption" color="text.secondary">
+                          更新：{fundamentals.tw_esg_updated_at.slice(0, 10)}
+                        </Typography>
+                      )}
+                    </Box>
+                  ) : (
+                    <Typography variant="caption" color="text.secondary">尚無 ESG 評級資料</Typography>
+                  )}
+                </Box>
+
+                {/* Broker Ratings */}
+                <Box>
+                  <SectionHeader>券商評等</SectionHeader>
+                  {brokerRatings?.length ? (
+                    <TableContainer>
+                      <Table size="small">
+                        <TableHead>
+                          <TableRow>
+                            <TableCell>日期</TableCell>
+                            <TableCell>券商</TableCell>
+                            <TableCell>操作</TableCell>
+                            <TableCell align="right">目標價</TableCell>
+                          </TableRow>
+                        </TableHead>
+                        <TableBody>
+                          {brokerRatings.slice(0, 15).map((row) => (
+                            <TableRow key={`${row.format_date}-${row.broker}`}>
+                              <TableCell sx={{ fontSize: '0.75rem' }}>{row.format_date}</TableCell>
+                              <TableCell sx={{ fontSize: '0.75rem' }}>{row.broker}</TableCell>
+                              <TableCell sx={{ fontSize: '0.75rem' }}>
+                                <Chip
+                                  label={row.new_rate || row.rate_kind || '-'}
+                                  size="small"
+                                  sx={{
+                                    height: 18,
+                                    fontSize: '0.65rem',
+                                    bgcolor: row.new_rate === '買進' || row.new_rate === '強力買進' ? 'success.main'
+                                      : row.new_rate === '賣出' ? 'error.main'
+                                      : 'action.selected',
+                                    color: 'white',
+                                  }}
+                                />
+                              </TableCell>
+                              <TableCell align="right" sx={{ fontSize: '0.75rem' }}>
+                                {row.target_price != null ? `$${Number(row.target_price).toFixed(0)}` : '-'}
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </TableContainer>
+                  ) : (
+                    <Typography variant="caption" color="text.secondary">尚無券商評等資料</Typography>
+                  )}
+                </Box>
+              </Stack>
+            </AccordionDetails>
+          </Accordion>
+        )}
 
         {/* Market Regime & Risk */}
         <Accordion>

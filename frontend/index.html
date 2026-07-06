@@ -5,9 +5,62 @@
     <link rel="icon" type="image/svg+xml" href="/fire.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>STOCK SCANNER</title>
+    <style>
+      /* Hide Google Translate banner and top frame */
+      .goog-te-banner-frame,
+      #goog-gt-tt,
+      .goog-te-balloon-frame {
+        display: none !important;
+      }
+      body {
+        top: 0 !important;
+      }
+      /* Style the translate dropdown to match dark UI */
+      .goog-te-gadget {
+        font-family: inherit !important;
+        font-size: 0 !important;
+        color: transparent !important;
+      }
+      .goog-te-gadget select {
+        font-size: 12px !important;
+        background: rgba(255,255,255,0.15) !important;
+        color: #fff !important;
+        border: none !important;
+        border-radius: 4px !important;
+        padding: 3px 6px !important;
+        cursor: pointer !important;
+        outline: none !important;
+      }
+      .goog-te-gadget select:hover {
+        background: rgba(255,255,255,0.25) !important;
+      }
+      .goog-te-gadget select option {
+        background: #333 !important;
+        color: #fff !important;
+      }
+    </style>
   </head>
   <body>
     <div id="root"></div>
+    <div id="google_translate_element" style="display:none"></div>
+    <script type="text/javascript">
+      function googleTranslateElementInit() {
+        new google.translate.TranslateElement(
+          {
+            pageLanguage: 'en',
+            includedLanguages: 'zh-TW,zh-CN,de,en',
+            layout: google.translate.TranslateElement.InlineLayout.SIMPLE,
+            autoDisplay: false,
+          },
+          'google_translate_element'
+        );
+      }
+    </script>
+    <script
+      type="text/javascript"
+      src="//translate.google.com/translate_a/element.js?cb=googleTranslateElementInit"
+      async
+    ></script>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>

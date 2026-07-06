@@ -27,6 +27,7 @@ import { AssistantChat } from '../AssistantChat';
 import PipelineProgressCard from '../PipelineProgressCard';
 import TaskSettingsModal from '../Settings/TaskSettingsModal';
 import RuntimeActivityStatusButton from './RuntimeActivityStatusButton';
+import GoogleTranslateWidget from './GoogleTranslateWidget';
 import { AssistantChatProvider } from '../../contexts/AssistantChatContext';
 import { useRuntime } from '../../contexts/RuntimeContext';
 import { useStrategyProfile } from '../../contexts/StrategyProfileContext';
@@ -89,6 +90,8 @@ function Layout({ children }) {
     { path: '/validation', label: 'Backtest' },
     ...(features.themes ? [{ path: '/themes', label: 'Themes' }] : []),
     ...(features.chatbot ? [{ path: '/chatbot', label: 'Assistant' }] : []),
+    { path: '/chip', label: 'Chip' },
+    { path: '/tw-ocr-debug', label: '上市/上櫃 Debug' },
   ];
 
   const [profileMenuAnchor, setProfileMenuAnchor] = useState(null);
@@ -201,6 +204,7 @@ function Layout({ children }) {
           >
             {theme.palette.mode === 'dark' ? <Brightness7Icon fontSize="small" /> : <Brightness4Icon fontSize="small" />}
           </IconButton>
+          <GoogleTranslateWidget />
         </Toolbar>
       </AppBar>
 

@@ -35,3 +35,23 @@ export const getTaskStatus = async (taskName, taskId) => {
   const response = await apiClient.get(`/v1/tasks/${taskName}/status/${taskId}`);
   return response.data;
 };
+
+/**
+ * Get the progress of the currently running feature snapshot build.
+ *
+ * @returns {Promise<{active: boolean, run: {id, as_of_date, status, done, total, pct, created_at}|null}>}
+ */
+export const getActiveSnapshotProgress = async () => {
+  const response = await apiClient.get('/v1/features/runs/active');
+  return response.data;
+};
+
+/**
+ * Mark any running feature snapshot run as failed (clears stuck progress bar).
+ *
+ * @returns {Promise<{cancelled: number}>}
+ */
+export const cancelActiveSnapshot = async () => {
+  const response = await apiClient.post('/v1/features/runs/active/cancel');
+  return response.data;
+};

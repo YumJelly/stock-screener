@@ -113,6 +113,7 @@ class BulkDataFetcher:
         )
         self._cn_price_service = cn_price_service
         self._krx_price_service = krx_price_service
+        self._cnyes_tw_service: Any | None = None
 
     @classmethod
     def _get_fallback_rate_limiter(cls) -> "RedisRateLimiter":
@@ -487,6 +488,43 @@ class BulkDataFetcher:
 
         except Exception as e:
             logger.debug(f"Error extracting EPS rating data: {e}")
+
+        return result
+
+    def _get_cnyes_tw_service(self):
+        """Lazy-init CNYesTWService (avoids import at module level)."""
+        if self._cnyes_tw_service is None:
+            from .cnyes_tw_service import CNYesTWService
+            self._cnyes_tw_service = CNYesTWService()
+        return self._cnyes_tw_service
+
+    def _extract_cnyes_tw_data(self, symbol: str) -> Dict[str, Any]:
+        """Fetch TW-specific data (月營收, ESG) from CNYes for one TW symbol.
+
+        Only runs for symbols ending in .TW or .TWO — returns {} for all others.
+        Errors are caught and logged; a partial result may be returned.
+        """
+        if not (symbol.endswith(".TW") or symbol.endswith(".TWO")):
+            return {}
+
+        result: Dict[str, Any] = {}
+        svc = self._get_cnyes_tw_service()
+
+        # 月營收
+        try:
+            rev = svc.fetch_monthly_revenue(symbol)
+            if rev:
+                result.update(rev)
+        except Exception as exc:
+            logger.debug("CNYes monthly revenue error for %s: %s", symbol, exc)
+
+        # ESG 評級
+        try:
+            esg = svc.fetch_esg_rating(symbol)
+            if esg:
+                result.update(esg)
+        except Exception as exc:
+            logger.debug("CNYes ESG error for %s: %s", symbol, exc)
 
         return result
 
@@ -1082,6 +1120,11 @@ class BulkDataFetcher:
                             eps_rating_data = self._extract_eps_rating_data(ticker)
                             fundamentals.update(eps_rating_data)
 
+                        # TW-specific CNYes data (月營收, ESG) — no-op for non-TW
+                        cnyes_data = self._extract_cnyes_tw_data(symbol)
+                        if cnyes_data:
+                            fundamentals.update(cnyes_data)
+
                         all_results[symbol] = fundamentals
 
                     except Exception as e:
@@ -1211,6 +1254,11 @@ class BulkDataFetcher:
                             # Also extract EPS rating data
                             eps_rating_data = self._extract_eps_rating_data(ticker)
                             fundamentals.update(eps_rating_data)
+
+                        # TW-specific CNYes data (月營收, ESG) — no-op for non-TW
+                        cnyes_data = self._extract_cnyes_tw_data(symbol)
+                        if cnyes_data:
+                            fundamentals.update(cnyes_data)
 
                         batch_results[symbol] = fundamentals
 

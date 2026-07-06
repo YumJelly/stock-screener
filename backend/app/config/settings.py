@@ -102,6 +102,22 @@ class Settings(BaseSettings):
     tavily_api_key: str = ""  # For web search (primary)
     serper_api_key: str = ""  # For web search (fallback)
 
+    # Chip (籌碼) module — remote Ollama for chip classification + LINE analysis
+    chip_ollama_url: str = "http://134.208.2.6:11434"  # Ollama base URL
+    chip_ollama_model: str = "qwen2.5:14b-instruct"    # must support format=json
+
+    # LINE Bot (chip stock query)
+    line_channel_access_token: str = ""  # LINE Messaging API channel access token
+    line_channel_secret: str = ""        # LINE channel secret (webhook signature)
+
+    # Public base URL for building absolute asset URLs (e.g. LINE image messages).
+    # Must be a publicly reachable HTTPS origin, e.g. https://stocks.example.com
+    public_base_url: str = ""
+
+    # Chip 30-day tracking (LINE query / watchlist add → daily re-fetch + push)
+    chip_tracking_days: int = 30           # tracking window length (days)
+    chip_score_alert_delta: float = 0.5    # cumulative-score change that triggers a text alert
+
     # Runtime profile
     feature_themes: bool = True
     feature_chatbot: bool = True

@@ -46,11 +46,19 @@ x-app-env: &app-env
   LLM_CHATBOT_MODEL: ${LLM_CHATBOT_MODEL:-}
   LLM_RESEARCH_MODEL: ${LLM_RESEARCH_MODEL:-}
   LLM_FALLBACK_ENABLED: ${LLM_FALLBACK_ENABLED:-true}
+  CHIP_OLLAMA_URL: ${CHIP_OLLAMA_URL:-http://134.208.2.6:11434}
+  CHIP_OLLAMA_MODEL: ${CHIP_OLLAMA_MODEL:-qwen2.5:14b-instruct}
+  LINE_CHANNEL_ACCESS_TOKEN: ${LINE_CHANNEL_ACCESS_TOKEN:-}
+  LINE_CHANNEL_SECRET: ${LINE_CHANNEL_SECRET:-}
+  PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-}
+  CHIP_TRACKING_DAYS: ${CHIP_TRACKING_DAYS:-30}
+  CHIP_SCORE_ALERT_DELTA: ${CHIP_SCORE_ALERT_DELTA:-0.5}
 
 x-celery-env: &celery-env
   <<: *app-env
   TZ: ${CELERY_TIMEZONE:-America/New_York}
   CELERY_TIMEZONE: ${CELERY_TIMEZONE:-America/New_York}
+  STATIC_SNAPSHOT_PARALLEL_WORKERS: "1"
 
 x-worker-common: &worker-common
   build: *backend-build
@@ -160,6 +168,7 @@ services:
 
   celery-datafetch:
     <<: *worker-common
+    stop_grace_period: 120s
     command: >
       sh -c 'QUEUES="$$(python scripts/compose_enabled_markets.py queues --markets "$${ENABLED_MARKETS:-US}")" &&
       exec celery -A app.celery_app worker --pool=prefork --loglevel=info --concurrency=1

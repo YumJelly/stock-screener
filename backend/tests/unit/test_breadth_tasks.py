@@ -84,7 +84,9 @@ def test_daily_breadth_refuses_to_publish_when_same_day_warmup_incomplete(monkey
         "stocks_down_13pct_34days": 0,
         "total_stocks_scanned": 9500,
         "skipped_stocks": 500,
-        "cache_miss_stocks": 25,
+        # 15% cache miss rate — exceeds CACHE_MISS_TOLERANCE_RATIO (10%)
+        # so the metrics gate blocks even though warmup metadata is partial+current
+        "cache_miss_stocks": 1500,
         "error_stocks": 0,
     }
     monkeypatch.setattr(module, "BreadthCalculatorService", lambda *a, **kw:fake_calculator)
@@ -92,9 +94,70 @@ def test_daily_breadth_refuses_to_publish_when_same_day_warmup_incomplete(monkey
     result = module.calculate_daily_breadth.run()
 
     assert "error" in result
-    assert "warmup not complete" in result["error"].lower()
+    assert "miss tolerance" in result["error"].lower()
     fake_db.add.assert_not_called()
     fake_db.commit.assert_not_called()
+
+
+def test_daily_breadth_publishes_with_partial_warmup_when_scan_misses_are_within_tolerance(monkeypatch):
+    """Partial warmup metadata (delta refresh) + good scan miss rate → should publish.
+
+    The warmup count/total only cover the delta symbols refreshed today; the
+    rest of the universe is cached from prior runs.  When the actual scan
+    cache-miss ratio is within tolerance, publication must not be blocked.
+    """
+    import app.tasks.breadth_tasks as module
+    import app.services.ui_snapshot_service as snapshot_module
+
+    fake_db = MagicMock()
+    fake_db.query.return_value.filter.return_value.first.return_value = None
+    monkeypatch.setattr(module, "SessionLocal", lambda: fake_db)
+    _patch_serialized_lock(monkeypatch)
+    _patch_calendar_service(monkeypatch, datetime(2026, 6, 16, 17, 35, 0))
+    publish_breadth = MagicMock()
+    monkeypatch.setattr(snapshot_module, "safe_publish_breadth_bootstrap", publish_breadth)
+
+    fake_price_cache = MagicMock()
+    # Partial warmup representing a delta refresh (157/183 = 85.8%) — typical
+    # scenario when only a small subset of symbols needed updating today.
+    fake_price_cache.get_warmup_metadata.return_value = {
+        "status": "partial",
+        "count": 157,
+        "total": 183,
+        "completed_at": datetime.now().isoformat(),
+        "error": None,
+    }
+
+    fake_calculator = MagicMock()
+    fake_calculator.price_cache = fake_price_cache
+    fake_calculator.calculate_daily_breadth.return_value = {
+        "stocks_up_4pct": 3200,
+        "stocks_down_4pct": 1100,
+        "ratio_5day": 1.37,
+        "ratio_10day": 0.8,
+        "stocks_up_25pct_quarter": 800,
+        "stocks_down_25pct_quarter": 400,
+        "stocks_up_25pct_month": 600,
+        "stocks_down_25pct_month": 300,
+        "stocks_up_50pct_month": 200,
+        "stocks_down_50pct_month": 100,
+        "stocks_up_13pct_34days": 700,
+        "stocks_down_13pct_34days": 350,
+        "total_stocks_scanned": 9429,
+        "skipped_stocks": 527,
+        # 4.3% miss rate — within CACHE_MISS_TOLERANCE_RATIO (10%)
+        "cache_miss_stocks": 431,
+        "error_stocks": 0,
+    }
+    monkeypatch.setattr(module, "BreadthCalculatorService", lambda *a, **kw: fake_calculator)
+
+    result = module.calculate_daily_breadth.run()
+
+    assert "error" not in result, f"Unexpected error: {result.get('error')}"
+    assert result["date"] == "2026-06-16"
+    assert result["indicators"]["ratio_5day"] == pytest.approx(1.37)
+    fake_db.add.assert_called_once()
+    fake_db.commit.assert_called_once()
 
 
 def test_generate_trading_dates_skips_holidays_and_weekends(monkeypatch):

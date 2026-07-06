@@ -27,6 +27,7 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y \
     libpq5 \
     curl \
+    fonts-noto-cjk \
     && rm -rf /var/lib/apt/lists/*
 
 RUN groupadd -r -g 1000 stockscanner && \
@@ -35,8 +36,16 @@ RUN groupadd -r -g 1000 stockscanner && \
 ENV HOME=/app/data
 ENV XDG_CACHE_HOME=/app/data/.cache
 ENV PATH=/opt/venv/bin:$PATH
+# Playwright browsers live outside the user's home so root can install them once
+# and the non-root runtime user can read them.
+ENV PLAYWRIGHT_BROWSERS_PATH=/opt/pw-browsers
 
 COPY --from=builder /opt/venv /opt/venv
+
+# Install Chromium + its OS dependencies for TPEX (上櫃) chip fetching.
+RUN playwright install --with-deps chromium && \
+    chmod -R a+rX /opt/pw-browsers
+
 COPY --chown=stockscanner:stockscanner backend/ .
 
 RUN mkdir -p /app/data/.cache && \

@@ -84,14 +84,32 @@ def _validate_same_day_cache_only_breadth(
     metrics: dict,
     market: Optional[str] = None,
 ) -> Optional[str]:
-    """Block publishing daily breadth when the same-day warmup/cache state is incomplete."""
+    """Block publishing daily breadth when the same-day warmup/cache state is incomplete.
+
+    When warmup metadata is ``partial`` but current the count/total in that
+    metadata reflect only the *delta* refresh (symbols updated today), not
+    full-universe cache coverage.  The actual cache-miss ratio from the breadth
+    scan itself is the authoritative measure, so we fall through to the
+    metrics-based gate rather than blocking immediately on a partial delta.
+    """
     warmup_meta = price_cache.get_warmup_metadata(market=market) if price_cache else None
     warmup_readiness = evaluate_warmup_metadata(
         warmup_meta,
         context="same-day breadth run",
     )
     if not warmup_readiness.ready:
-        return warmup_readiness.reason
+        # Partial warmup with current metadata: fall through to the actual
+        # scan metrics.  The delta-refresh count (e.g. 157/183) only covers
+        # symbols that needed updating today; the remaining universe is still
+        # in cache from previous runs.  The scan miss-ratio is the better gate.
+        if warmup_readiness.status == "partial" and warmup_readiness.metadata_current:
+            logger.warning(
+                "Same-day breadth: warmup metadata is partial (%s); "
+                "deferring to actual scan cache-miss metrics for publication gate.",
+                warmup_readiness.summary,
+            )
+        else:
+            return warmup_readiness.reason
 
     return _validate_same_day_cache_only_breadth_metrics(metrics)
 

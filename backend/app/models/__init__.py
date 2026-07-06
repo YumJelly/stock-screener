@@ -36,6 +36,9 @@ from .market_scan import ScanWatchlist
 from .user_theme import UserTheme, UserThemeSubgroup, UserThemeStock
 from .user_watchlist import UserWatchlist, WatchlistItem
 from .ticker_validation import TickerValidationLog
+from .chip_result import ChipDailyResult
+from .chip_broker_snapshot import ChipBrokerSnapshot
+from .chip_tracking import ChipTracking
 from .filter_preset import FilterPreset
 from .institutional_ownership import InstitutionalOwnershipHistory
 from .fx_rate import FXRate
@@ -119,4 +122,8 @@ __all__ = [
     "FeatureRunUniverseSymbol",
     "StockFeatureDaily",
     "FeatureRunPointer",
+    # Chip (籌碼) analysis
+    "ChipDailyResult",
+    "ChipBrokerSnapshot",
+    "ChipTracking",
 ]

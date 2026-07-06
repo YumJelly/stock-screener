@@ -7,6 +7,8 @@ import {
   Button,
   Chip,
   CircularProgress,
+  Collapse,
+  IconButton,
   Link,
   Paper,
   Stack,
@@ -16,12 +18,16 @@ import {
   TableContainer,
   TableHead,
   TableRow,
+  Tooltip,
   Typography,
 } from '@mui/material';
 import DownloadIcon from '@mui/icons-material/Download';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
+import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
+import KeyboardArrowUpIcon from '@mui/icons-material/KeyboardArrowUp';
 
 import { getDailyDigest, getDailyDigestMarkdown } from '../api/digest';
+import { getTWBlockTrades } from '../api/twData';
 import { ValidationDegradedAlert, ValidationSummaryCards } from '../components/Validation/ValidationPanels';
 import { useStrategyProfile } from '../contexts/StrategyProfileContext';
 
@@ -56,6 +62,131 @@ function SectionCard({ title, children }) {
         {children}
       </Stack>
     </Paper>
+  );
+}
+
+function fmtVolume(v) {
+  if (v == null) return '-';
+  return Number(v).toLocaleString();
+}
+
+function fmtValue(v) {
+  if (v == null) return '-';
+  const m = v / 1_000_000;
+  return `NT$${m >= 1000 ? `${(m / 1000).toFixed(1)}B` : `${m.toFixed(1)}M`}`;
+}
+
+function BlockTradeRow({ stock }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <TableRow sx={{ '& > *': { borderBottom: 'unset' } }}>
+        <TableCell sx={{ width: 32, p: 0.5 }}>
+          {stock.trades?.length > 0 && (
+            <Tooltip title={open ? '收合' : '展開明細'}>
+              <IconButton size="small" onClick={() => setOpen((o) => !o)}>
+                {open ? <KeyboardArrowUpIcon fontSize="small" /> : <KeyboardArrowDownIcon fontSize="small" />}
+              </IconButton>
+            </Tooltip>
+          )}
+        </TableCell>
+        <TableCell>
+          <Link component={RouterLink} to={`/stocks/${encodeURIComponent(stock.symbol)}`} underline="hover">
+            {stock.symbol}
+          </Link>
+        </TableCell>
+        <TableCell>{stock.name || '-'}</TableCell>
+        <TableCell align="right">{stock.trades?.length ?? 0}</TableCell>
+        <TableCell align="right">{fmtVolume(stock.total_volume)}</TableCell>
+        <TableCell align="right">{fmtValue(stock.total_value)}</TableCell>
+      </TableRow>
+      {stock.trades?.length > 0 && (
+        <TableRow>
+          <TableCell colSpan={6} sx={{ py: 0 }}>
+            <Collapse in={open} timeout="auto" unmountOnExit>
+              <Box sx={{ px: 4, py: 1 }}>
+                <Table size="small">
+                  <TableHead>
+                    <TableRow>
+                      <TableCell>交易別</TableCell>
+                      <TableCell align="right">成交價</TableCell>
+                      <TableCell align="right">股數</TableCell>
+                      <TableCell align="right">金額</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {stock.trades.map((t, i) => (
+                      // eslint-disable-next-line react/no-array-index-key
+                      <TableRow key={i}>
+                        <TableCell>{t.trade_type}</TableCell>
+                        <TableCell align="right">{Number(t.price).toLocaleString()}</TableCell>
+                        <TableCell align="right">{fmtVolume(t.volume)}</TableCell>
+                        <TableCell align="right">{fmtValue(t.value)}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </Box>
+            </Collapse>
+          </TableCell>
+        </TableRow>
+      )}
+    </>
+  );
+}
+
+function BlockTradesSection() {
+  const { data, isLoading, error } = useQuery({
+    queryKey: ['twBlockTrades'],
+    queryFn: () => getTWBlockTrades(),
+    staleTime: 30 * 60 * 1000,   // 30 minutes
+    refetchOnWindowFocus: false,
+  });
+
+  const stocks = data?.data ?? [];
+
+  return (
+    <SectionCard title="鉅額交易 Block Trades">
+      {isLoading && (
+        <Box sx={{ display: 'flex', justifyContent: 'center', py: 2 }}>
+          <CircularProgress size={24} />
+        </Box>
+      )}
+      {error && (
+        <Alert severity="warning">
+          無法載入鉅額交易資料：{error.message}
+        </Alert>
+      )}
+      {!isLoading && !error && stocks.length === 0 && (
+        <Typography variant="body2" color="text.secondary">
+          今日尚無鉅額交易資料。
+        </Typography>
+      )}
+      {stocks.length > 0 && (
+        <TableContainer>
+          <Table size="small">
+            <TableHead>
+              <TableRow>
+                <TableCell sx={{ width: 32 }} />
+                <TableCell>代號</TableCell>
+                <TableCell>名稱</TableCell>
+                <TableCell align="right">筆數</TableCell>
+                <TableCell align="right">總股數</TableCell>
+                <TableCell align="right">總金額</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {stocks.map((stock) => (
+                <BlockTradeRow key={stock.symbol} stock={stock} />
+              ))}
+            </TableBody>
+          </Table>
+        </TableContainer>
+      )}
+      <Typography variant="caption" color="text.secondary">
+        資料來源：TWSE OpenAPI（每日收盤後更新）
+      </Typography>
+    </SectionCard>
   );
 }
 
@@ -460,6 +591,8 @@ function DigestPage() {
       </Paper>
 
       {orderedSections.map((sectionKey) => sections[sectionKey]).filter(Boolean)}
+
+      <BlockTradesSection />
 
       <SectionCard title="Freshness">
         <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'repeat(4, 1fr)' }, gap: 1 }}>

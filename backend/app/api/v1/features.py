@@ -2,6 +2,7 @@
 
 Provides monitoring and comparison capabilities for the feature store:
 - GET /features/runs — list feature runs with row counts
+- GET /features/runs/active — active run progress (done/total/pct)
 - GET /features/compare — compare two feature runs side-by-side
 """
 
@@ -12,6 +13,7 @@ from datetime import date
 from typing import Optional, Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy import text
 
 from ...schemas.feature_store import (
     CompareRunsResponse,
@@ -31,6 +33,67 @@ router = APIRouter()
 # ---------------------------------------------------------------------------
 # Endpoints
 # ---------------------------------------------------------------------------
+
+
+@router.get("/runs/active")
+async def get_active_run_progress(uow: Any = Depends(get_uow)):
+    """Return progress of the currently running feature snapshot (done/total/pct).
+
+    Returns null fields when no run is active.
+    """
+    with uow:
+        db = uow.session
+        row = db.execute(text("""
+            SELECT
+                fr.id,
+                fr.as_of_date,
+                fr.status,
+                fr.created_at,
+                (SELECT COUNT(*) FROM stock_feature_daily WHERE run_id = fr.id) AS done,
+                (SELECT COUNT(*) FROM feature_run_universe_symbols WHERE run_id = fr.id) AS total
+            FROM feature_runs fr
+            WHERE fr.status = 'running'
+            ORDER BY fr.created_at DESC
+            LIMIT 1
+        """)).mappings().first()
+
+    if row is None:
+        return {"active": False, "run": None}
+
+    done = row["done"] or 0
+    total = row["total"] or 0
+    pct = round(done / total * 100, 1) if total > 0 else 0.0
+    return {
+        "active": True,
+        "run": {
+            "id": row["id"],
+            "as_of_date": str(row["as_of_date"]),
+            "status": row["status"],
+            "created_at": row["created_at"].isoformat() if row["created_at"] else None,
+            "done": done,
+            "total": total,
+            "pct": pct,
+        },
+    }
+
+
+@router.post("/runs/active/cancel")
+async def cancel_active_run(uow: Any = Depends(get_uow)):
+    """Mark any currently-running feature snapshot run as failed.
+
+    Safe to call at any time — only affects rows with status='running'.
+    Used by the Operations UI to clear a stuck snapshot progress card.
+    """
+    with uow:
+        db = uow.session
+        result = db.execute(text("""
+            UPDATE feature_runs
+            SET status = 'failed'
+            WHERE status = 'running'
+        """))
+        db.commit()
+        cancelled = result.rowcount
+    return {"cancelled": cancelled}
 
 
 @router.get("/runs", response_model=ListRunsResponse)

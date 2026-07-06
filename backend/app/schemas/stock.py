@@ -46,6 +46,14 @@ class StockFundamentals(BaseModel):
     market_cap_usd: Optional[int] = None
     adv_usd: Optional[int] = None
     fx_metadata: Optional[Dict[str, Any]] = None
+    # TW-specific fields (CNYes data, only populated for .TW / .TWO symbols)
+    tw_revenue_monthly_latest: Optional[float] = None
+    tw_revenue_monthly_yoy: Optional[float] = None
+    tw_revenue_monthly_mom: Optional[float] = None
+    tw_revenue_monthly_date: Optional[str] = None
+    tw_revenue_monthly_updated_at: Optional[str] = None
+    tw_esg_grade: Optional[str] = None
+    tw_esg_updated_at: Optional[str] = None
 
 
 class StockTechnicals(BaseModel):

@@ -178,8 +178,45 @@ class StockFundamental(Base):
     # the fx_rates log.
     fx_metadata = Column(JsonColumn)
 
+    # TW-specific data from CNYes API
+    # 月營收 (monthly revenue, 千元). TW-listed companies report monthly.
+    tw_revenue_monthly_latest = Column(BigInteger)
+    tw_revenue_monthly_yoy = Column(Float)   # YoY %
+    tw_revenue_monthly_mom = Column(Float)   # MoM %
+    tw_revenue_monthly_date = Column(String(10))  # "YYYY-MM"
+    tw_revenue_monthly_updated_at = Column(DateTime(timezone=True))
+    # ESG 評級 (from CNYes ESG rank API)
+    tw_esg_grade = Column(String(5), index=True)  # "AAA"/"AA"/"A"/"BBB"/None
+    tw_esg_updated_at = Column(DateTime(timezone=True))
+
     # Metadata
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+
+class TWBrokerRating(Base):
+    """TW broker upgrade/downgrade records (from CNYes API).
+
+    Each row is one analyst rating event.  Unique per (symbol, format_date, broker).
+    Historical records are kept; the latest window is used for CANSLIM
+    institutional analysis.
+    """
+
+    __tablename__ = "tw_broker_ratings"
+
+    id = Column(Integer, primary_key=True, index=True)
+    symbol = Column(String(20), nullable=False, index=True)
+    format_date = Column(String(12), nullable=False)   # "YYYY/MM/DD"
+    broker = Column(String(50))
+    rate_kind = Column(String(20))    # 買進 / 中立 / 賣出
+    new_rate = Column(String(20))
+    target_price = Column(Float)
+    fetched_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    __table_args__ = (
+        UniqueConstraint("symbol", "format_date", "broker", name="uix_tw_broker_symbol_date_broker"),
+        Index("idx_tw_broker_symbol", "symbol"),
+        Index("idx_tw_broker_date", "format_date"),
+    )
 
 
 class StockTechnical(Base):

@@ -31,6 +31,7 @@ import {
 } from '@mui/material';
 import { fetchAlerts, acknowledgeAlert } from '../api/telemetry';
 import { cancelOperationsJob, fetchOperationsJobs } from '../api/operations';
+import { cancelActiveSnapshot, getActiveSnapshotProgress } from '../api/tasks';
 import { useRuntimeActivity } from '../hooks/useRuntimeActivity';
 
 const POLL_MS = 30000;
@@ -110,6 +111,73 @@ function resolveDeterminatePercent(percent, current, total) {
     return Math.max(0, Math.min(100, (Number(current) / Number(total)) * 100));
   }
   return null;
+}
+
+function SnapshotProgressCard() {
+  const queryClient = useQueryClient();
+  const { data, isLoading } = useQuery({
+    queryKey: ['snapshot', 'active'],
+    queryFn: getActiveSnapshotProgress,
+    refetchInterval: (query) => (query.state.data?.active ? 10000 : 60000),
+  });
+
+  const cancelMutation = useMutation({
+    mutationFn: cancelActiveSnapshot,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['snapshot', 'active'] }),
+  });
+
+  if (isLoading) return null;
+  if (!data?.active || !data.run) return null;
+
+  const { as_of_date, done, total, pct, created_at } = data.run;
+  const elapsed = created_at
+    ? Math.round((Date.now() - new Date(created_at).getTime()) / 60000)
+    : null;
+  const eta =
+    elapsed != null && pct > 0
+      ? Math.round((elapsed / pct) * (100 - pct))
+      : null;
+
+  // If elapsed > 30 min with no meaningful progress, treat as potentially stuck
+  const likelyStuck = elapsed != null && elapsed > 30 && pct < 1;
+
+  return (
+    <Card variant="outlined" sx={{ mb: 2 }}>
+      <CardContent sx={{ pb: '12px !important' }}>
+        <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 1 }}>
+          <CircularProgress size={16} thickness={5} />
+          <Typography variant="subtitle2">
+            Building daily snapshot — {as_of_date}
+          </Typography>
+          <Chip label={`${pct}%`} size="small" color="info" />
+          {elapsed != null && (
+            <Typography variant="caption" color="text.secondary">
+              {elapsed}m elapsed{eta != null ? ` · ~${eta}m remaining` : ''}
+            </Typography>
+          )}
+          <Box sx={{ flexGrow: 1 }} />
+          <Button
+            size="small"
+            color={likelyStuck ? 'error' : 'inherit'}
+            variant="outlined"
+            disabled={cancelMutation.isPending}
+            onClick={() => cancelMutation.mutate()}
+            sx={{ minWidth: 0, fontSize: '0.7rem', py: 0.25, px: 1 }}
+          >
+            {cancelMutation.isPending ? 'Clearing…' : 'Clear stuck'}
+          </Button>
+        </Stack>
+        <LinearProgress
+          variant="determinate"
+          value={pct}
+          sx={{ height: 8, borderRadius: 1 }}
+        />
+        <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: 'block' }}>
+          {done.toLocaleString()} / {total.toLocaleString()} symbols
+        </Typography>
+      </CardContent>
+    </Card>
+  );
 }
 
 function MarketSummaryCard({ summary }) {
@@ -581,6 +649,8 @@ export default function OperationsPage() {
       <Typography variant="body2" color="text.secondary" gutterBottom>
         Per-market telemetry, live queue inventory, and safe background-job controls.
       </Typography>
+
+      <SnapshotProgressCard />
 
       <Typography variant="h6" sx={{ mt: 3, mb: 1 }}>
         Market activity

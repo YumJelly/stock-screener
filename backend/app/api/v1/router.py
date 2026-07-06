@@ -52,6 +52,10 @@ _include("fundamentals", tags=["fundamentals"])
 _include("data_fetch_status", tags=["data-fetch"])
 _include("telemetry", tags=["telemetry"])
 _include("operations", tags=["operations"])
+_include("tw_data", tags=["tw-data"])
+_include("chip", tags=["chip"])
+_include("chip_charts", tags=["chip"], protected=False)
+_include("line_webhook", tags=["line"], protected=False)
 
 if settings.feature_themes:
     _include("themes", prefix="/themes", tags=["themes"])

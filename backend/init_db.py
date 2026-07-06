@@ -29,6 +29,12 @@ try:
     import app.models.watchlist
 except ImportError:
     pass
+try:
+    import app.models.chip_result
+    import app.models.chip_broker_snapshot
+    import app.models.chip_tracking
+except ImportError:
+    pass
 
 import logging
 

@@ -456,6 +456,18 @@ class FundamentalsCacheService:
                 "market_cap_usd": record.market_cap_usd,
                 "adv_usd": record.adv_usd,
                 "fx_metadata": record.fx_metadata,
+                # TW-specific fields (CNYes, only for .TW / .TWO symbols)
+                "tw_revenue_monthly_latest": record.tw_revenue_monthly_latest,
+                "tw_revenue_monthly_yoy": record.tw_revenue_monthly_yoy,
+                "tw_revenue_monthly_mom": record.tw_revenue_monthly_mom,
+                "tw_revenue_monthly_date": record.tw_revenue_monthly_date,
+                "tw_revenue_monthly_updated_at": (
+                    record.tw_revenue_monthly_updated_at.isoformat() if record.tw_revenue_monthly_updated_at else None
+                ),
+                "tw_esg_grade": record.tw_esg_grade,
+                "tw_esg_updated_at": (
+                    record.tw_esg_updated_at.isoformat() if record.tw_esg_updated_at else None
+                ),
             }
 
             # Compute fallback description (finviz preferred, yfinance as fallback)

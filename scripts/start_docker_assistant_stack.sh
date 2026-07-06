@@ -78,6 +78,10 @@ resolve_hermes_provider() {
     printf '%s' "openrouter"
     return
   fi
+  if [[ -n "${GOOGLE_API_KEY:-}" || -n "${GEMINI_API_KEY:-}" ]]; then
+    printf '%s' "gemini"
+    return
+  fi
   if [[ -n "${OPENAI_API_KEY:-}" || -n "${OPENAI_BASE_URL:-}" ]]; then
     printf '%s' "custom"
     return
@@ -113,16 +117,22 @@ validate_provider_credentials() {
         exit 1
       }
       ;;
-    custom)
+    gemini)
+      [[ -n "${GOOGLE_API_KEY:-}" || -n "${GEMINI_API_KEY:-}" ]] || {
+        echo "GOOGLE_API_KEY or GEMINI_API_KEY is required when HERMES_INFERENCE_PROVIDER=gemini." >&2
+        exit 1
+      }
+      ;;
+    custom|openai)
       [[ -n "${OPENAI_API_KEY:-}" && -n "${OPENAI_BASE_URL:-}" ]] || {
-        echo "OPENAI_API_KEY and OPENAI_BASE_URL are required when HERMES_INFERENCE_PROVIDER=custom." >&2
+        echo "OPENAI_API_KEY and OPENAI_BASE_URL are required when HERMES_INFERENCE_PROVIDER=${provider}." >&2
         exit 1
       }
       ;;
     auto)
       ;;
     *)
-      echo "Invalid HERMES_INFERENCE_PROVIDER: ${provider}. Allowed values: minimax|zai|openrouter|custom|auto." >&2
+      echo "Invalid HERMES_INFERENCE_PROVIDER: ${provider}. Allowed values: minimax|zai|openrouter|gemini|custom|openai|auto." >&2
       exit 1
       ;;
   esac
@@ -144,7 +154,10 @@ resolve_hermes_model() {
     openrouter)
       printf '%s' "anthropic/claude-sonnet-4"
       ;;
-    custom)
+    gemini)
+      printf '%s' "gemini-2.5-flash"
+      ;;
+    custom|openai)
       printf '%s' "gpt-4o-mini"
       ;;
     *)
@@ -154,7 +167,7 @@ resolve_hermes_model() {
 }
 
 HERMES_HAS_PROVIDER_KEY=false
-for provider_key in OPENROUTER_API_KEY OPENAI_API_KEY MINIMAX_API_KEY GLM_API_KEY ZAI_API_KEY Z_AI_API_KEY; do
+for provider_key in OPENROUTER_API_KEY OPENAI_API_KEY GOOGLE_API_KEY GEMINI_API_KEY MINIMAX_API_KEY GLM_API_KEY ZAI_API_KEY Z_AI_API_KEY; do
   if [[ "$provider_key" == "OPENAI_API_KEY" ]]; then
     if [[ -n "${OPENAI_API_KEY:-}" && -n "${OPENAI_BASE_URL:-}" ]]; then
       HERMES_HAS_PROVIDER_KEY=true
@@ -176,6 +189,7 @@ Supported Docker-first options:
   - MINIMAX_API_KEY
   - ZAI_API_KEY or GLM_API_KEY
   - OPENROUTER_API_KEY
+  - GOOGLE_API_KEY or GEMINI_API_KEY
   - OPENAI_API_KEY together with OPENAI_BASE_URL for a custom OpenAI-compatible endpoint
 EOF
   exit 1
@@ -260,6 +274,8 @@ MINIMAX_API_KEY=${MINIMAX_API_KEY:-}
 MINIMAX_BASE_URL=${MINIMAX_BASE_URL_VALUE}
 TAVILY_API_KEY=${TAVILY_API_KEY:-}
 SERPER_API_KEY=${SERPER_API_KEY:-}
+GOOGLE_API_KEY=${GOOGLE_API_KEY:-}
+GEMINI_API_KEY=${GEMINI_API_KEY:-}
 EOF
 }
 

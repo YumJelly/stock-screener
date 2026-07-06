@@ -184,3 +184,68 @@ golden-update: ## Regenerate golden snapshots for review
 	$(PYTEST) tests/unit/golden/ -v --tb=short --golden-update
 
 all: gate-check gate-identity gates phase2-reliability frontend ## Full CI (gate-check + identity + backend gates + phase2 reliability + frontend)
+
+# ── Docker Deployment ───────────────────────────────────────────────
+# One-liners for rebuilding + migrating the Docker stack so you don't have
+# to remember the full compose invocation.
+#
+#   make docker-deploy                 # build + up + migrate (homelab combo)
+#   make docker-deploy HTTPS=1         # include Caddy HTTPS overlay (VPS)
+#   make docker-verify                 # sanity-check deps, fonts, migration, chart URL
+#
+# Overridable variables:
+#   COMPOSE   full compose command prefix   (default: sudo docker compose)
+#   ENV_FILE  env file                      (default: .env.docker)
+#   HTTPS     set to 1 to add the HTTPS overlay
+#   PUBLIC_URL public origin for endpoint check (default from .env.docker)
+#   SYMBOL    stock code used by docker-verify (default: 2330)
+
+.PHONY: docker-build docker-up docker-migrate docker-deploy docker-verify \
+        docker-logs docker-restart docker-down
+
+COMPOSE      ?= sudo docker compose
+ENV_FILE     ?= .env.docker
+COMPOSE_BASE  = -f docker-compose.yml -f docker-compose.prod.yml
+COMPOSE_HTTPS = $(if $(filter 1 true yes,$(HTTPS)),-f docker-compose.https.yml,)
+DC            = $(COMPOSE) $(COMPOSE_BASE) $(COMPOSE_HTTPS) --env-file $(ENV_FILE)
+PUBLIC_URL   ?= $(shell grep -E '^PUBLIC_BASE_URL=' $(ENV_FILE) 2>/dev/null | cut -d= -f2- | sed 's:/*$$::')
+SYMBOL       ?= 2330
+
+docker-build: ## Rebuild backend + frontend images (matplotlib + CJK fonts + JS)
+	$(DC) build --no-cache backend frontend
+
+docker-up: ## Recreate all services (applies new .env.docker vars)
+	$(DC) up -d
+
+docker-migrate: ## Apply DB migrations inside the backend container
+	$(DC) exec backend alembic upgrade head
+
+docker-deploy: ## Full redeploy: build + up + migrate
+	$(MAKE) docker-build
+	$(MAKE) docker-up
+	$(MAKE) docker-migrate
+	@echo "✅ Deploy complete. Run 'make docker-verify' to sanity-check."
+
+docker-verify: ## Sanity-check chip charts deployment (deps, fonts, migration, endpoint)
+	@echo "── alembic current ─────────────────────────────"
+	@$(DC) exec backend alembic current || true
+	@echo "── matplotlib ──────────────────────────────────"
+	@$(DC) exec backend python -c "import matplotlib; print('matplotlib', matplotlib.__version__)" || true
+	@echo "── CJK fonts ───────────────────────────────────"
+	@$(DC) exec backend sh -c "fc-list | grep -i 'noto.*cjk' | head -3" || echo "  (fc-list unavailable)"
+	@echo "── public chart endpoint ($(SYMBOL)) ───────────"
+	@if [ -n "$(PUBLIC_URL)" ]; then \
+	  curl -sI "$(PUBLIC_URL)/api/v1/chip/chart/$(SYMBOL).png?kind=daily" | head -5; \
+	else \
+	  echo "  PUBLIC_BASE_URL not set in $(ENV_FILE); skipping endpoint check"; \
+	fi
+
+docker-restart: ## Restart backend + celery beat/general workers without rebuilding
+	$(DC) restart backend celery-beat celery-general celery-datafetch
+
+docker-logs: ## Tail backend logs (Ctrl-C to stop)
+	$(DC) logs -f --tail=100 backend
+
+docker-down: ## Stop the stack (keeps volumes/data)
+	$(DC) down
+

@@ -42,6 +42,24 @@ router = APIRouter()
 WATCHLIST_HISTORY_LOOKBACK_DAYS = 400
 
 
+def _maybe_enroll_chip_tracking(db: Session, symbol: str) -> None:
+    """台股（.TW/.TWO）加入 watchlist 時，登錄 30 天籌碼追蹤（best-effort）。"""
+    try:
+        from ...services.chip import tracking
+
+        if not tracking.is_taiwan_symbol(symbol):
+            return
+        tracking.enroll(
+            db,
+            symbol,
+            tracking.market_of(symbol),
+            from_watchlist=True,
+        )
+    except Exception:  # noqa: BLE001
+        logger.exception("chip tracking enroll from watchlist failed: %s", symbol)
+
+
+
 def _get_watchlist_stewardship_service() -> WatchlistStewardshipService:
     return WatchlistStewardshipService()
 
@@ -433,6 +451,7 @@ async def add_item(
     db.add(item)
     db.commit()
     db.refresh(item)
+    _maybe_enroll_chip_tracking(db, symbol)
     return WatchlistItemResponse.model_validate(item)
 
 
@@ -501,6 +520,9 @@ async def bulk_add_items(
     # Refresh all items to get their IDs
     for item in added_items:
         db.refresh(item)
+
+    for item in added_items:
+        _maybe_enroll_chip_tracking(db, item.symbol)
 
     return [WatchlistItemResponse.model_validate(item) for item in added_items]
 

@@ -288,6 +288,66 @@ Migrations are versioned under `backend/alembic/`. PostgreSQL is the supported d
 
 **CANSLIM**: Current quarterly EPS > 25%, Annual EPS growth > 25% 3yr, new highs, volume patterns, RS > 70, institutional ownership 40-70%
 
+## Known Behaviours & Gotchas
+
+### Snapshot progress bar stuck after worker SIGKILL
+
+**Symptom:** Operations page shows "Building daily snapshot — YYYY-MM-DD" progress bar
+frozen at some percentage even after workers are restarted.
+
+**Cause:** `build_daily_snapshot` writes progress into the `feature_runs` table
+(`status='running'`). When the worker is killed (SIGKILL / `docker restart`),
+it never marks the run as complete or failed, so the row stays `running`
+indefinitely. The `/api/v1/features/runs/active` endpoint surfaces any
+`status='running'` row as active progress.
+
+**Fix (2026-06-16):**
+- Backend: `POST /api/v1/features/runs/active/cancel` endpoint added — sets all
+  `status='running'` rows to `'failed'`.
+- Frontend: "Clear stuck" button added to `SnapshotProgressCard` in
+  `OperationsPage.jsx` — calls the endpoint and refreshes the card.
+
+**Manual one-liner (if UI is unavailable):**
+```bash
+sudo docker exec stock-screener-backend-1 python3 -c "
+from sqlalchemy import text; from app.database import SessionLocal
+db = SessionLocal()
+r = db.execute(text(\"UPDATE feature_runs SET status='failed' WHERE status='running'\"))
+print('cleared:', r.rowcount); db.commit(); db.close()
+"
+```
+
+**Files changed:**
+- `backend/app/api/v1/features.py` — `POST /runs/active/cancel`
+- `frontend/src/api/tasks.js` — `cancelActiveSnapshot()`
+- `frontend/src/pages/OperationsPage.jsx` — `SnapshotProgressCard` clear button
+
+---
+
+### Breadth task: partial warmup metadata does not block publication
+
+**Symptom:** `calculate_daily_breadth_with_gapfill` logs
+`✗ Refusing to publish daily breadth: Cache warmup not complete for same-day breadth run (partial, 157/183)`
+even though the scan itself had a healthy cache-miss rate (e.g. 4.3%).
+
+**Cause:** The price-refresh delta run updates only the symbols that needed
+today's data (e.g. 183 symbols). That partial count gets saved as the warmup
+metadata `status="partial"`. The breadth gate was reading that count as
+"universe coverage", but it only reflects the *delta* — the rest of the
+universe is still correctly cached from prior runs.
+
+**Fix (2026-06-16):** `_validate_same_day_cache_only_breadth` in
+`app/tasks/breadth_tasks.py` now falls through to the actual scan miss-ratio
+gate (`CACHE_MISS_TOLERANCE_RATIO = 10%`) when warmup metadata is
+`partial` + current. Stale or missing metadata still blocks as before.
+
+**Files changed:**
+- `backend/app/tasks/breadth_tasks.py` — `_validate_same_day_cache_only_breadth`
+- `backend/tests/unit/test_breadth_tasks.py` — updated existing test + added
+  `test_daily_breadth_publishes_with_partial_warmup_and_good_metrics`
+
+---
+
 ## macOS Development Note
 For Celery on macOS, use `--pool=solo` (set via `start_celery.sh`) to avoid fork() crashes with curl_cffi. Also set:
 ```bash

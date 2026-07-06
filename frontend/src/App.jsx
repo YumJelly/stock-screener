@@ -26,6 +26,8 @@ const ValidationPage = lazy(() => import('./pages/ValidationPage'));
 const ThemesPage = lazy(() => import('./pages/ThemesPage'));
 const ChatbotPage = lazy(() => import('./pages/ChatbotPage'));
 const OperationsPage = lazy(() => import('./pages/OperationsPage'));
+const BlockTradeOCRPage = lazy(() => import('./pages/BlockTradeOCRPage'));
+const ChipAnalysisPage = lazy(() => import('./pages/ChipAnalysisPage'));
 
 // Loading fallback component
 const PageLoadingFallback = () => (
@@ -309,6 +311,8 @@ function AppShell() {
             {features.chatbot && <Route path="/chatbot" element={assistantChatbotRoute} />}
             <Route path="/stocks/:ticker" element={<StockDetails />} />
             <Route path="/operations" element={<OperationsPage />} />
+            <Route path="/tw-ocr-debug" element={<BlockTradeOCRPage />} />
+            <Route path="/chip" element={<ChipAnalysisPage />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </Suspense>
